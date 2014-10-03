@@ -1,0 +1,84 @@
+#!/bin/sh
+
+# variable definitions (seeds)
+_BASE_DIR=".git_logs"
+_COMMAND_HIST_FILE="command_hist"
+_PATCH_DIR="patches"
+_STATUS_DIR="statuses"
+_REWRITE_DIR="rewrites"
+_REFLOG_DIR="reflogs"
+
+# method definitions
+is_wd_under_git(){ git rev-parse --is-inside-work-tree &> /dev/null; return $?;}
+mkdir_ifnot_exist(){ [ ! -d $1 ] && mkdir -p $1;}
+
+# check pre-condition of running this
+type git &> /dev/null && {
+  unalias git &> /dev/null # if not this command is alised "git", peel alias.
+  type git &> /dev/null && {
+    if [ -z "$HOME" ]; then # do nothing
+      exec git "$@"
+    elif is_wd_under_git; then
+      ### pre-execution phase
+      _CUR_LOCATION=`pwd`
+      _CUR_DATE_UTC=`date -u +%Y-%m-%d-%H:%M:%S`
+      _CUR_BRANCH=`git rev-parse --abbrev-ref @`
+
+      # retrieve from config with context
+      _REMOTE_CUR_BRANCH=`git config --local --get branch.${_CUR_BRANCH}.remote`
+      : ${_REMOTE_CUR_BRANCH:="EMPTY"} # set default value unless _REMOTE_URL
+
+      # retrieve from config with context
+      _REMOTE_URL=`git config --local --get remote.${_REMOTE_CUR_BRANCH}.url`
+      : ${_REMOTE_URL:=`git config --local --list | grep -e "^remote\..*\.url=" | head -1 | sed -e "s/^remote\..*\.url=//"`} # find first
+      : ${_REMOTE_URL:=_CUR_LOCATION} # set default value unless _REMOTE_URL
+
+      _REMOTE_URL_FIT_TO_FS=`echo ${_REMOTE_URL} | sed -e 's/[ \/:@]/\./g'`".d"
+
+      _BASE_DIR="${HOME}/${_BASE_DIR}"
+      _COMMAND_HIST_FILE="${_BASE_DIR}/${_COMMAND_HIST_FILE}"
+
+      # setup
+      _BASE_DIR="${_BASE_DIR}/${_REMOTE_URL_FIT_TO_FS}"
+      mkdir_ifnot_exist "${_BASE_DIR}"
+      mkdir_ifnot_exist "${_BASE_DIR}/${_PATCH_DIR}"
+      mkdir_ifnot_exist "${_BASE_DIR}/${_REWRITE_DIR}"
+      mkdir_ifnot_exist "${_BASE_DIR}/${_STATUS_DIR}"
+      mkdir_ifnot_exist "${_BASE_DIR}/${_REFLOG_DIR}"
+
+      _LAST_EXECTUTED=`ls -1 "${_BASE_DIR}/${_REFLOG_DIR}" | tail -1 | sed -e "s/\..*//"`
+      : ${_LAST_EXECTUTED:=_CUR_DATE_UTC}
+
+      # log two patches
+      git diff > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-pre.patch"
+      git diff --staged > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-staged-pre.patch"
+
+      # log state
+      git status > "${_BASE_DIR}/${_STATUS_DIR}/${_CUR_DATE_UTC}-pre.status"
+
+      # log rewrite
+      git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
+
+      # executes handled. : not exec
+      git "$@"
+      _CMD_STATUS=$?
+
+      # log a command (%date, $exit_status, %repo_url, %remote, %branch, %commands and options)
+      echo "${_CUR_DATE_UTC},${_CMD_STATUS},${_REMOTE_URL},${_REMOTE_CUR_BRANCH},${_CUR_BRANCH},$@" >> "$_COMMAND_HIST_FILE"
+
+      ### post-execution
+      git diff > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-post.patch"
+      git diff --staged > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-staged-post.patch"
+      git status > "${_BASE_DIR}/${_STATUS_DIR}/${_CUR_DATE_UTC}-post.status"
+      git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-post.rewrite"
+      git log --walk-reflogs --since="${_LAST_EXECTUTED}" > "${_BASE_DIR}/${_REFLOG_DIR}/${_CUR_DATE_UTC}.reflog"
+
+      exit ${_CMD_STATUS}
+    else # For initializing flows or showing original error messages
+      exec git "$@"
+    fi
+  }
+}
+
+echo "git not found."
+

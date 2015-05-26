@@ -21,8 +21,11 @@ type git &> /dev/null && {
     elif is_wd_under_git; then
       ### pre-execution phase
       _CUR_LOCATION=`pwd`
-      _CUR_DATE_UTC=`date -u +%Y-%m-%d-%H:%M:%S`
-      _CUR_BRANCH=`git rev-parse --abbrev-ref @`
+      _CUR_DATE_UTC=`perl -MTime::HiRes=gettimeofday -E 'my ($s, $ms) = gettimeofday; printf("%d%d\n", $s, ($ms / 1000))'`
+
+      # verify HEAD
+      git log &> /dev/null -n 0 && _CUR_BRANCH=`git rev-parse --abbrev-ref @`
+      : ${_CUR_BRANCH:="EMPTY"}
 
       # retrieve from config with context
       _REMOTE_CUR_BRANCH=`git config --local --get branch.${_CUR_BRANCH}.remote`
@@ -31,7 +34,7 @@ type git &> /dev/null && {
       # retrieve from config with context
       _REMOTE_URL=`git config --local --get remote.${_REMOTE_CUR_BRANCH}.url`
       : ${_REMOTE_URL:=`git config --local --list | grep -e "^remote\..*\.url=" | head -1 | sed -e "s/^remote\..*\.url=//"`} # find first
-      : ${_REMOTE_URL:=_CUR_LOCATION} # set default value unless _REMOTE_URL
+      : ${_REMOTE_URL:=$_CUR_LOCATION} # set default value unless _REMOTE_URL
 
       _REMOTE_URL_FIT_TO_FS=`echo ${_REMOTE_URL} | sed -e 's/[ \/:@]/\./g'`".d"
 
@@ -47,7 +50,7 @@ type git &> /dev/null && {
       mkdir_ifnot_exist "${_BASE_DIR}/${_REFLOG_DIR}"
 
       _LAST_EXECTUTED=`ls -1 "${_BASE_DIR}/${_REFLOG_DIR}" | tail -1 | sed -e "s/\..*//"`
-      : ${_LAST_EXECTUTED:=_CUR_DATE_UTC}
+      : ${_LAST_EXECTUTED:=$_CUR_DATE_UTC}
 
       # log two patches
       git diff > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-pre.patch"
@@ -57,7 +60,8 @@ type git &> /dev/null && {
       git status > "${_BASE_DIR}/${_STATUS_DIR}/${_CUR_DATE_UTC}-pre.status"
 
       # log rewrite
-      git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
+      touch "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
+      git log -n 0 &> /dev/null && git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
 
       # executes handled. : not exec
       git "$@"
@@ -70,8 +74,13 @@ type git &> /dev/null && {
       git diff > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-post.patch"
       git diff --staged > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-staged-post.patch"
       git status > "${_BASE_DIR}/${_STATUS_DIR}/${_CUR_DATE_UTC}-post.status"
-      git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-post.rewrite"
-      git log --walk-reflogs --since="${_LAST_EXECTUTED}" > "${_BASE_DIR}/${_REFLOG_DIR}/${_CUR_DATE_UTC}.reflog"
+
+      # create empty files
+      touch "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-post.rewrite"
+      touch "${_BASE_DIR}/${_REFLOG_DIR}/${_CUR_DATE_UTC}.reflog"
+      # overwrite if valid HEAD
+      git log -n 0 &> /dev/null && git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-post.rewrite"
+      git log -n 0 &> /dev/null && git log --walk-reflogs --since="${_LAST_EXECTUTED}" > "${_BASE_DIR}/${_REFLOG_DIR}/${_CUR_DATE_UTC}.reflog"
 
       exit ${_CMD_STATUS}
     else # For initializing flows or showing original error messages

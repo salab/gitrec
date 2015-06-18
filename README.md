@@ -1,4 +1,6 @@
-# Gitrec
+# gitrec
+
+## Developed at [this repository](https://bitbucket.org/jmatsuda/git-wrapper)
 
 # How to use
 

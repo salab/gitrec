@@ -8,8 +8,8 @@ _STATUS_DIR="statuses"
 _REWRITE_DIR="rewrites"
 _REFLOG_DIR="reflogs"
 
-# method definitions
-is_wd_under_git(){ git rev-parse --is-inside-work-tree &> /dev/null; return $?;}
+# method definitions]
+is_wd_under_git(){ _RET=`git rev-parse --is-inside-work-tree`; [ "$_RET" = "true" ] && return $? || return 1; }
 mkdir_ifnot_exist(){ [ ! -d $1 ] && mkdir -p $1;}
 
 # check pre-condition of running this

@@ -84,14 +84,16 @@ type git &> /dev/null && {
       touch "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
       git log -n 0 &> /dev/null && git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
 
-      _IS_IN_REBASING=`is_in_rebasing`
+      _PRE_IS_IN_REBASING=`is_in_rebasing`
 
       # executes handled. : not exec
       git "$@"
       _CMD_STATUS=$?
 
+      _POST_IS_IN_REBASING=`is_in_rebasing`
+
       # log a command (%date, $exit_status, %repo_url, %remote, %branch, %commands and options)
-      echo "${_CUR_DATE_UTC},${_CMD_STATUS},${_REMOTE_URL},${_REMOTE_CUR_BRANCH},${_CUR_BRANCH},$_IS_IN_REBASING,$@" >> "$_COMMAND_HIST_FILE"
+      echo "${_CUR_DATE_UTC},${_CMD_STATUS},${_REMOTE_URL},${_REMOTE_CUR_BRANCH},${_CUR_BRANCH},${_PRE_IS_IN_REBASING},${_POST_IS_IN_REBASING},$@" >> "$_COMMAND_HIST_FILE"
 
       ### post-execution
       git diff > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-post.patch"

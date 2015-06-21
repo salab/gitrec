@@ -12,6 +12,27 @@ _REFLOG_DIR="reflogs"
 is_wd_under_git(){ _RET=`git rev-parse --is-inside-work-tree`; [ "$_RET" = "true" ] && return $? || return 1; }
 mkdir_ifnot_exist(){ [ ! -d $1 ] && mkdir -p $1;}
 
+echo_dotgit_path(){
+if is_wd_under_git; then
+  _GIT_PATH=`git rev-parse --show-toplevel`
+  _GIT_PATH="${_GIT_PATH}/.git"
+  echo ${_GIT_PATH}
+else
+  return 1;
+fi
+}
+
+echo_rebase_dir_path(){
+_GIT_PATH=`echo_dotgit_path`
+echo "${_GIT_PATH}/rebase-merge"
+}
+
+is_in_rebasing(){
+test -d `echo_rebase_dir_path`
+_TEMP=$?
+echo $_TEMP && return $_TEMP
+}
+
 # check pre-condition of running this
 type git &> /dev/null && {
   unalias git &> /dev/null # if not this command is alised "git", peel alias.
@@ -63,12 +84,14 @@ type git &> /dev/null && {
       touch "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
       git log -n 0 &> /dev/null && git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
 
+      _IS_IN_REBASING=`is_in_rebasing`
+
       # executes handled. : not exec
       git "$@"
       _CMD_STATUS=$?
 
       # log a command (%date, $exit_status, %repo_url, %remote, %branch, %commands and options)
-      echo "${_CUR_DATE_UTC},${_CMD_STATUS},${_REMOTE_URL},${_REMOTE_CUR_BRANCH},${_CUR_BRANCH},$@" >> "$_COMMAND_HIST_FILE"
+      echo "${_CUR_DATE_UTC},${_CMD_STATUS},${_REMOTE_URL},${_REMOTE_CUR_BRANCH},${_CUR_BRANCH},$_IS_IN_REBASING,$@" >> "$_COMMAND_HIST_FILE"
 
       ### post-execution
       git diff > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-post.patch"

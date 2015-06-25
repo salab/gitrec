@@ -6,10 +6,11 @@ _COMMAND_HIST_FILE="command_hist"
 _PATCH_DIR="patches"
 _STATUS_DIR="statuses"
 _REWRITE_DIR="rewrites"
+_TREE_DIR="trees"
 _REFLOG_DIR="reflogs"
 
 # method definitions]
-is_wd_under_git(){ _RET=`git rev-parse --is-inside-work-tree`; [ "$_RET" = "true" ] && return $? || return 1; }
+is_wd_under_git(){ _RET=`git rev-parse --is-inside-work-tree 2> /dev/null`; [ "$_RET" = "true" ] && return $? || return 1; }
 mkdir_ifnot_exist(){ [ ! -d $1 ] && mkdir -p $1;}
 
 echo_dotgit_path(){
@@ -67,6 +68,7 @@ type git &> /dev/null && {
       mkdir_ifnot_exist "${_BASE_DIR}"
       mkdir_ifnot_exist "${_BASE_DIR}/${_PATCH_DIR}"
       mkdir_ifnot_exist "${_BASE_DIR}/${_REWRITE_DIR}"
+      mkdir_ifnot_exist "${_BASE_DIR}/${_TREE_DIR}"
       mkdir_ifnot_exist "${_BASE_DIR}/${_STATUS_DIR}"
       mkdir_ifnot_exist "${_BASE_DIR}/${_REFLOG_DIR}"
 
@@ -81,19 +83,28 @@ type git &> /dev/null && {
       git status > "${_BASE_DIR}/${_STATUS_DIR}/${_CUR_DATE_UTC}-pre.status"
 
       # log rewrite
+      touch "${_BASE_DIR}/${_TREE_DIR}/${_CUR_DATE_UTC}-pre.tree"
+      git log -n 0 &> /dev/null && git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_TREE_DIR}/${_CUR_DATE_UTC}-pre.tree"
+
       touch "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
-      git log -n 0 &> /dev/null && git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
+      is_in_rebasing &> /dev/null && {
+        _REBASE_DIR=`echo_rebase_dir_path`
+        [ -f "${_REBASE_DIR}/rewritten-list" ] && cat "${_REBASE_DIR}/rewritten-list" > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-pre.rewrite"
+      }
 
       _PRE_IS_IN_REBASING=`is_in_rebasing`
+
+      _PRE_HEAD=`git rev-parse --verify HEAD 2> /dev/stdout`
 
       # executes handled. : not exec
       git "$@"
       _CMD_STATUS=$?
 
+      _POST_HEAD=`git rev-parse --verify HEAD 2> /dev/stdout`
       _POST_IS_IN_REBASING=`is_in_rebasing`
 
       # log a command (%date, $exit_status, %repo_url, %remote, %branch, %commands and options)
-      echo "${_CUR_DATE_UTC},${_CMD_STATUS},${_REMOTE_URL},${_REMOTE_CUR_BRANCH},${_CUR_BRANCH},${_PRE_IS_IN_REBASING},${_POST_IS_IN_REBASING},$@" >> "$_COMMAND_HIST_FILE"
+      echo "${_CUR_DATE_UTC},${_CMD_STATUS},${_REMOTE_URL},${_REMOTE_CUR_BRANCH},${_CUR_BRANCH},${_PRE_IS_IN_REBASING},${_POST_IS_IN_REBASING},${_PRE_HEAD},${_POST_HEAD},$@" >> "$_COMMAND_HIST_FILE"
 
       ### post-execution
       git diff > "${_BASE_DIR}/${_PATCH_DIR}/${_CUR_DATE_UTC}-post.patch"
@@ -101,11 +112,18 @@ type git &> /dev/null && {
       git status > "${_BASE_DIR}/${_STATUS_DIR}/${_CUR_DATE_UTC}-post.status"
 
       # create empty files
-      touch "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-post.rewrite"
+      touch "${_BASE_DIR}/${_TREE_DIR}/${_CUR_DATE_UTC}-post.tree"
       touch "${_BASE_DIR}/${_REFLOG_DIR}/${_CUR_DATE_UTC}.reflog"
       # overwrite if valid HEAD
-      git log -n 0 &> /dev/null && git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-post.rewrite"
+      git log -n 0 &> /dev/null && git diff-tree -r --full-index HEAD > "${_BASE_DIR}/${_TREE_DIR}/${_CUR_DATE_UTC}-post.tree"
       git log -n 0 &> /dev/null && git log --walk-reflogs --since="${_LAST_EXECTUTED}" > "${_BASE_DIR}/${_REFLOG_DIR}/${_CUR_DATE_UTC}.reflog"
+
+      touch "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-post.rewrite"
+      is_in_rebasing &> /dev/null && {
+        _REBASE_DIR=`echo_rebase_dir_path`
+        [ -f "${_REBASE_DIR}/rewritten-list" ] && cat "${_REBASE_DIR}/rewritten-list" > "${_BASE_DIR}/${_REWRITE_DIR}/${_CUR_DATE_UTC}-post.rewrite"+
+      }
+
 
       exit ${_CMD_STATUS}
     else # For initializing flows or showing original error messages

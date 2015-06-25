@@ -34,6 +34,11 @@ _TEMP=$?
 echo $_TEMP && return $_TEMP
 }
 
+peel_alias() {
+_aliased=`git config --get-regexp "^alias\.$1\$" | sed -e "s/^alias\.$1 //"`
+echo "${_aliased:-$1}"
+}
+
 # check pre-condition of running this
 type git &> /dev/null && {
   unalias git &> /dev/null # if not this command is alised "git", peel alias.

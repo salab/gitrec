@@ -10,33 +10,39 @@ _TREE_DIR="trees"
 _REFLOG_DIR="reflogs"
 
 # method definitions]
-is_wd_under_git(){ _RET=`git rev-parse --is-inside-work-tree 2> /dev/null`; [ "$_RET" = "true" ] && return $? || return 1; }
-mkdir_ifnot_exist(){ [ ! -d $1 ] && mkdir -p $1;}
+is_wd_under_git(){
+  _RET=`git rev-parse --is-inside-work-tree 2> /dev/null`
+  [ "$_RET" = "true" ] && return $? || return 1
+}
+
+mkdir_ifnot_exist(){
+  [ ! -d $1 ] && mkdir -p $1
+}
 
 echo_dotgit_path(){
-if is_wd_under_git; then
-  _GIT_PATH=`git rev-parse --show-toplevel`
-  _GIT_PATH="${_GIT_PATH}/.git"
-  echo ${_GIT_PATH}
-else
-  return 1;
-fi
+  if is_wd_under_git; then
+    _GIT_PATH=`git rev-parse --show-toplevel`
+    _GIT_PATH="${_GIT_PATH}/.git"
+    echo ${_GIT_PATH}
+  else
+    return 1;
+  fi
 }
 
 echo_rebase_dir_path(){
-_GIT_PATH=`echo_dotgit_path`
-echo "${_GIT_PATH}/rebase-merge"
+  _GIT_PATH=`echo_dotgit_path`
+  echo "${_GIT_PATH}/rebase-merge"
 }
 
 is_in_rebasing(){
-test -d `echo_rebase_dir_path`
-_TEMP=$?
-echo $_TEMP && return $_TEMP
+  test -d `echo_rebase_dir_path`
+  _TEMP=$?
+  echo $_TEMP && return $_TEMP
 }
 
 peel_alias() {
-_aliased=`git config --get-regexp "^alias\.$1\$" | sed -e "s/^alias\.$1 //"`
-echo "${_aliased:-$1}"
+  _aliased=`git config --get-regexp "^alias\.$1\$" | sed -e "s/^alias\.$1 //"`
+  echo "${_aliased:-$1}"
 }
 
 # check pre-condition of running this
